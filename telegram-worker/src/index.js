@@ -18,8 +18,8 @@ function esc(v = '') {
 }
 
 function leadText(d) {
-  const car = [d?.car?.make, d?.car?.model, d?.car?.year, d?.car?.color].filter(Boolean).join(' · ');
-  const when = [d?.date, d?.time].filter(Boolean).join(' · ') || 'уточнить';
+  const car = d?.car_text || [d?.car?.make, d?.car?.model, d?.car?.year, d?.car?.color].filter(Boolean).join(' · ');
+  const when = d?.when_text || [d?.date, d?.time].filter(Boolean).join(' · ') || 'уточнить';
   return [
     '🚘 <b>Новая заявка АВТОБЛЕСК</b>', '',
     `🚗 <b>Авто:</b> ${esc(car || 'не указано')}`,
@@ -33,19 +33,41 @@ function leadText(d) {
   ].filter(Boolean).join('\n');
 }
 
+const cors = {
+  'access-control-allow-origin': 'https://hippoundefined101r-spec.github.io',
+  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-headers': 'content-type'
+};
+
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+
     if (request.method === 'GET') {
       return Response.json({
         ok: true,
         service: 'AUTOBLESK bot worker',
         botTokenConfigured: Boolean(env.BOT_TOKEN),
         adminChatConfigured: Boolean(env.ADMIN_CHAT_ID || DEFAULT_ADMIN_CHAT_ID)
-      });
+      }, { headers: cors });
     }
-    if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+
+    if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: cors });
 
     try {
+      // Direct Mini App submission. This does not expose the bot token in the browser.
+      if (url.pathname === '/lead') {
+        const lead = await request.json();
+        await tg(env.BOT_TOKEN, 'sendMessage', {
+          chat_id: env.ADMIN_CHAT_ID || DEFAULT_ADMIN_CHAT_ID,
+          text: leadText(lead),
+          parse_mode: 'HTML'
+        });
+        return Response.json({ ok: true }, { headers: cors });
+      }
+
+      // Telegram webhook events.
       const update = await request.json();
       const msg = update.message;
       const text = msg?.text || '';
@@ -66,23 +88,21 @@ export default {
         let lead;
         try { lead = JSON.parse(msg.web_app_data.data); }
         catch { lead = { note: msg.web_app_data.data }; }
-
         await tg(env.BOT_TOKEN, 'sendMessage', {
           chat_id: env.ADMIN_CHAT_ID || DEFAULT_ADMIN_CHAT_ID,
           text: leadText(lead),
           parse_mode: 'HTML'
         });
-
         await tg(env.BOT_TOKEN, 'sendMessage', {
           chat_id: msg.chat.id,
           text: '✅ Заявка отправлена. С вами свяжутся для подтверждения.'
         });
       }
 
-      return new Response('OK');
+      return new Response('OK', { headers: cors });
     } catch (e) {
       console.error('Worker error:', e?.stack || String(e));
-      return new Response('ERROR', { status: 500 });
+      return Response.json({ ok: false, error: String(e?.message || e) }, { status: 500, headers: cors });
     }
   }
 };
