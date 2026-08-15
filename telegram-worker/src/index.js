@@ -1,4 +1,4 @@
-const MINI_APP_URL = 'https://hippoundefined101r-spec.github.io/oneway-miniapp/autoblesk/v4/';
+const MINI_APP_URL = 'https://hippoundefined101r-spec.github.io/oneway-miniapp/autoblesk/v5/';
 const DEFAULT_ADMIN_CHAT_ID = '6046743044';
 
 async function tg(token, method, payload) {
