@@ -1,0 +1,9 @@
+name = "autoblesk-telegram-bot"
+main = "src/index.js"
+compatibility_date = "2026-08-15"
+
+[vars]
+ADMIN_CHAT_ID = "6046743044"
+
+[observability.logs]
+enabled = true
